@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <sys/io.h>
 
-#define DEBUG true
+#define DEBUG false
 #define N_BUSES 256
 #define N_SLOTS 32
 #define N_FUNCS 8

@@ -36,9 +36,9 @@ int get_header_type(int bus, int device, int func);
 int get_secondary_bus(int bus, int device, int func);
 bool is_multifunc(int bus, int device, int func);
 uint32_t get_barx(int bus, int device, int func, int x);
-void check_function(int bus, int device, int func);
-void check_device(int bus, int device);
-void check_bus(int bus);
+void check_function(int bus, int device, int func, int class_in, int subclass_in, int interface_in);
+void check_device(int bus, int device, int class_in, int subclass_in, int interface_in);
+void check_bus(int bus, int class_in, int subclass_in, int interface_in);
 
 int main(int argc, char *argv[]) {
 	
@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
 	// Escaneo recursivo
 	header_type = get_header_type(0, 0, 0);
 	if (header_type == STANDARD_HEADER) { // Single PCI host controller
-		check_bus(0);
+		check_bus(0, class_in, subclass_in, interface_in);
 	} else { // Multiple PCI host controllers
 		for (int func = 0; func < N_FUNCS; func++) {
 			vend = get_vend_id(0, 0, func);
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 				
 			// Escaneamos los demas buses
 			bus = func;
-			check_bus(bus);
+			check_bus(bus, class_in, subclass_in, interface_in);
 		}
 	}
 	return 0;
@@ -228,7 +228,7 @@ uint32_t get_barx(int bus, int device, int func, int x) {
 	return inl(CONFIG_DAT);
 }
 
-void check_function(int bus, int device, int func) {
+void check_function(int bus, int device, int func, int class_in, int subclass_in, int interface_in) {
 	
 	int vend, prod, class, subclass, new_bus, interface;
 	uint32_t bar0_io, bar1_io, bar2_io, 
@@ -240,30 +240,35 @@ void check_function(int bus, int device, int func) {
     if ((class == PCI_TO_PCI_CLASS) && 
 		(subclass == PCI_TO_PCI_SUBCLASS)) {
 		new_bus = get_secondary_bus(bus, device, func);
-		check_bus(new_bus);
+		check_bus(new_bus, class_in, subclass_in, interface_in);
 	} else {
 		
-		// Obtenemos la info del dispositivo
-		vend = get_vend_id(bus, device, func);
-		prod = get_prod_id(bus, device, func);
+		// Comprobamos que es como el que buscamos
 		class = get_class(bus, device, func);
 		subclass = get_subclass(bus, device, func);
 		interface = get_interface(bus, device, func);
-		bar0_io = get_barx(bus, device, func, 0);
-		bar1_io = get_barx(bus, device, func, 1);
-		bar2_io = get_barx(bus, device, func, 2);
-		bar3_io = get_barx(bus, device, func, 3);
-		bar4_io = get_barx(bus, device, func, 4);
-		bar5_mem = get_barx(bus, device, func, 5);
+		
+		if (class == class_in && subclass == subclass_in &&
+						interface == interface_in) {
+			// Obtenemos la info del dispositivo
+			vend = get_vend_id(bus, device, func);
+			prod = get_prod_id(bus, device, func);
+			bar0_io = get_barx(bus, device, func, 0);
+			bar1_io = get_barx(bus, device, func, 1);
+			bar2_io = get_barx(bus, device, func, 2);
+			bar3_io = get_barx(bus, device, func, 3);
+			bar4_io = get_barx(bus, device, func, 4);
+			bar5_mem = get_barx(bus, device, func, 5);
 
-		// Imprimimos la info
-		printf("Bus %#x Slot %#x Función %#x Vendedor %#x Producto %#x Clase %#x Subclase %#x Interfaz %#x BAR0-IO %#x BAR1-IO %#x BAR2-IO %#x BAR3-IO %#x BAR4-IO %#x BAR5-Mem %#x\n", 
-			bus, device, func, vend, prod, class, subclass, interface, 
-			bar0_io, bar1_io, bar2_io, bar3_io, bar4_io, bar5_mem);	
+			// Imprimimos la info
+			printf("Bus %#x Slot %#x Función %#x Vendedor %#x Producto %#x Clase %#x Subclase %#x Interfaz %#x BAR0-IO %#x BAR1-IO %#x BAR2-IO %#x BAR3-IO %#x BAR4-IO %#x BAR5-Mem %#x\n", 
+				bus, device, func, vend, prod, class, subclass, interface, 
+				bar0_io, bar1_io, bar2_io, bar3_io, bar4_io, bar5_mem);	
+		}
 	}
 }
 
-void check_device(int bus, int device) {
+void check_device(int bus, int device, int class_in, int subclass_in, int interface_in) {
 	
      int vend, prod, func = 0;
  
@@ -274,7 +279,7 @@ void check_device(int bus, int device) {
      if (vend == 0xFFFF && prod == 0xFFFF)
 		return;
 	
-     check_function(bus, device, func);
+     check_function(bus, device, func, class_in, subclass_in, interface_in);
      
      if(is_multifunc(bus, device, func)) {
 		 // It's a multi-function device, so check remaining functions
@@ -283,14 +288,14 @@ void check_device(int bus, int device) {
 			 prod = get_prod_id(bus, device, func);
      
              if (vend != 0xFFFF && prod != 0xFFFF) {
-                 check_function(bus, device, func);
+                 check_function(bus, device, func, class_in, subclass_in, interface_in);
              }
          }
      }
  }
 
-void check_bus(int bus) {
+void check_bus(int bus, int class_in, int subclass_in, int interface_in) {
 	for (int dev = 0; dev < N_DEVICES; dev++) {
-		check_device(bus, dev);
+		check_device(bus, dev, class_in, subclass_in, interface_in);
 	}
 }
